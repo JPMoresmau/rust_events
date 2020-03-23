@@ -4,9 +4,10 @@ use lapin::{
 };
 
 use std::collections::{HashMap,HashSet};
-use serde::{Deserialize, Serialize,de::DeserializeOwned};
+use serde::{Serialize,de::DeserializeOwned};
 use super::{Consumer,ConsumerID,EventError,EventInfo,EventType,EventManager,GenericEvent};
 use std::time::SystemTime;
+use std::marker::PhantomData;
 
 pub struct RabbitMQEventManager {
     connection: Connection,
@@ -41,8 +42,9 @@ impl RabbitMQEventManager {
 impl EventManager for RabbitMQEventManager {
 
 
-    fn send(&mut self, otenant: Option<&str>,t: impl EventType + Serialize) -> Result<(),EventError>{
-        let code = t.code();
+    fn send<T>(&mut self, otenant: Option<&str>,t: T) -> Result<(),EventError>
+        where T: EventType + Serialize{
+        let code = T::code();
         self.exchange_declare(&code)?;
         let mut routing_key=code.clone();
         routing_key.push_str(".");
@@ -59,13 +61,15 @@ impl EventManager for RabbitMQEventManager {
             .map_err(|le| EventError::SendError(le.to_string())))
     }
 
-    fn add_consumer<T: EventType + 'static + Clone + Sync + Send + DeserializeOwned>(&mut self, otenant:Option<&str>, c: impl Consumer<T> + 'static + Clone + Sync + Send) -> Result<ConsumerID,EventError>{
-        let event_type=T::default();
-        let code = event_type.code();
+    fn add_consumer<T,C>(&mut self, otenant:Option<&str>, c: C)
+    -> Result<ConsumerID,EventError>
+    where T: EventType + 'static + Clone + Sync + Send + DeserializeOwned,
+        C: Consumer<T> + 'static + Clone + Sync + Send {
+        let code = T::code();
 
         self.exchange_declare(&code)?;
 
-        let mut group = c.group().clone();
+        let mut group = C::group().clone();
         if let Some(tenant) = otenant {
             group.push_str(".");
             group.push_str(tenant);
@@ -97,7 +101,7 @@ impl EventManager for RabbitMQEventManager {
         .wait()
         .map_err(|le| EventError::SetupError(le.to_string()))?;
 
-        lc.set_delegate(Box::new(Subscriber { channel: self.channel.clone(),consumer:c,event_type}));
+        lc.set_delegate(Box::new(Subscriber { channel: self.channel.clone(),consumer:c,event_type:PhantomData}));
 
         let mut id = ConsumerID(self.consumers.len() as u64);
         while self.consumers.contains_key(&id){
@@ -124,7 +128,7 @@ impl EventManager for RabbitMQEventManager {
 struct Subscriber<T: EventType + Clone + Sync + Send, C: Consumer<T> + Clone + Sync + Send>  {
     channel: Channel,
     consumer: C,
-    event_type: T,
+    event_type: PhantomData<T>,
 }
 
 impl <T: EventType + Clone + Sync + Send+ DeserializeOwned, C: Consumer<T> + Clone + Sync + Send> Subscriber<T,C> {

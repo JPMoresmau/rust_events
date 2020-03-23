@@ -1,31 +1,22 @@
-use lapin::{
-    message::DeliveryResult, options::*, types::FieldTable, BasicProperties, Channel, Connection,
-    ConnectionProperties, ConsumerDelegate,
-};
+extern crate rust_events_derive;
+
+use lapin::ConnectionProperties;
 use std::env;
 use rust_events::*;
+use rust_events_derive::*;
 use serde::{Deserialize, Serialize};
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, ConsumerGroup)]
 struct MyConsumer {
     desc: String,
 }
 
-#[derive(Debug, Default, Clone, Serialize,Deserialize)]
+#[derive(Debug, Default, Clone, Serialize,Deserialize, EventType)]
 struct MyEvent {
     message: String,
 }
 
-impl EventType for MyEvent {
-    fn code(&self) -> String{
-        "MyEvent".to_owned()
-    }
-}
-
 impl Consumer<MyEvent> for MyConsumer {
-    fn group(&self) -> String{
-        "MyConsumer".to_owned()
-    }
 
     fn consume(&self, t: GenericEvent<MyEvent>) -> Result<(),()>{
         println!("{} received: {:?}",self.desc,t);
@@ -33,21 +24,6 @@ impl Consumer<MyEvent> for MyConsumer {
     }
 }
 
-#[derive(Clone, Debug)]
-struct Subscriber {
-    channel: Channel,
-}
-
-impl ConsumerDelegate for Subscriber {
-    fn on_new_delivery(&self, delivery: DeliveryResult) {
-        if let Ok(Some(delivery)) = delivery {
-            self.channel
-                .basic_ack(delivery.delivery_tag, BasicAckOptions::default())
-                .wait()
-                .expect("basic_ack");
-        }
-    }
-}
 
 fn get_tenant(ot: &str)-> Option<&str> {
     match ot{

@@ -20,8 +20,8 @@ pub enum EventError {
     NoConsumeError,
 }
 
-pub trait EventType : Default {
-    fn code(&self) -> String;
+pub trait EventType {
+    fn code() -> String;
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -29,16 +29,24 @@ pub struct ConsumerID(u64);
 
 pub trait EventManager {
 
-    fn send(&mut self, otenant: Option<&str>,t: impl EventType + Serialize) -> Result<(),EventError>;
+    fn send<T>(&mut self, otenant: Option<&str>,t: T) -> Result<(),EventError>
+        where T: EventType + Serialize;
 
-    fn add_consumer<T: EventType + 'static + Clone + Sync + Send + DeserializeOwned>(&mut self, otenant:Option<&str>, c: impl Consumer<T> + 'static + Clone + Sync + Send) -> Result<ConsumerID,EventError>;
+    fn add_consumer<T,C>(&mut self, otenant:Option<&str>, c: C)
+        -> Result<ConsumerID,EventError>
+        where T: EventType + 'static + Clone + Sync + Send + DeserializeOwned,
+            C: Consumer<T> + 'static + Clone + Sync + Send;
 
     fn close(&mut self)-> Result<(),EventError>;
 }
 
-pub trait Consumer<T: EventType> {
 
-    fn group(&self) -> String;
+pub trait ConsumerGroup {
+
+    fn group() -> String;
+}
+
+pub trait Consumer<T: EventType> : ConsumerGroup {
 
     fn consume(&self, t: GenericEvent<T>) -> Result<(),()>;
 }
@@ -60,7 +68,7 @@ impl<T: EventType+Serialize> GenericEvent<T> {
     pub fn new(tenant: &str, data: T) -> Self { 
         Self {
             info: EventInfo {
-                code: data.code(),
+                code: T::code(),
                 tenant: tenant.to_owned(),
                 created: SystemTime::now(),
             },
