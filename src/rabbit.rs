@@ -53,7 +53,7 @@ impl EventManager for RabbitMQEventManager {
         }
         let ge=GenericEvent{info:EventInfo{
             code: code.clone(),
-            tenant: otenant.map(|s| s.to_owned()).unwrap_or(String::new()),
+            tenant: otenant.map(|s| s.to_owned()).unwrap_or_default(),
             created: SystemTime::now(),
         },data:t};
         ge.payload().and_then(|v| self.channel.basic_publish(&code,&routing_key, BasicPublishOptions::default(),v,BasicProperties::default())
@@ -69,7 +69,7 @@ impl EventManager for RabbitMQEventManager {
 
         self.exchange_declare(&code)?;
 
-        let mut group = C::group().clone();
+        let mut group = C::group();
         if let Some(tenant) = otenant {
             group.push_str(".");
             group.push_str(tenant);

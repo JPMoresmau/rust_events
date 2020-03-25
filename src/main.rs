@@ -1,7 +1,7 @@
 extern crate rust_events_derive;
 
 use lapin::ConnectionProperties;
-use std::env;
+use std::{env,thread, time};
 use rust_events::*;
 use rust_events_derive::*;
 use serde::{Deserialize, Serialize};
@@ -43,7 +43,7 @@ fn main() -> Result<(),EventError> {
         2 => {
             mgr.add_consumer(get_tenant(&args[1]), MyConsumer{desc:format!("consumer for tenant {}",args[1])})?;
             loop {
-
+                thread::sleep(time::Duration::from_secs(1));
             }
         },
         3 => {
