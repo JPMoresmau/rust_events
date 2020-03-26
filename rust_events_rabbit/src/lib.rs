@@ -1,6 +1,7 @@
 extern crate lapin;
 extern crate serde;
 extern crate rust_events;
+extern crate log;
 
 use lapin::{
     message::DeliveryResult, options::*, types::FieldTable, BasicProperties, Channel, Connection, message::Delivery, 
@@ -12,8 +13,10 @@ use serde::{Serialize,de::DeserializeOwned};
 use rust_events::{Consumer,ConsumerID,EventError,EventInfo,EventType,EventManager,GenericEvent};
 use std::time::SystemTime;
 use std::marker::PhantomData;
+use log::{info, trace};
 
 pub struct RabbitMQEventManager {
+    opened: bool,
     connection: Connection,
     channel: Channel,
     exchanges: HashSet<String>,
@@ -25,7 +28,7 @@ impl RabbitMQEventManager {
         Connection::connect(uri, options)
             .wait()
             .and_then(|connection| {
-                connection.create_channel().wait().map(|channel| RabbitMQEventManager {connection,channel,exchanges: HashSet::new(), consumers: HashMap::new()}) 
+                connection.create_channel().wait().map(|channel| RabbitMQEventManager {opened:true,connection,channel,exchanges: HashSet::new(), consumers: HashMap::new()}) 
             })
             .map_err(|le| EventError::ConnectionError(le.to_string()))
       
@@ -45,8 +48,13 @@ impl RabbitMQEventManager {
 
 }
 
-impl EventManager for RabbitMQEventManager {
+impl Drop for RabbitMQEventManager {
+    fn drop(&mut self) {
+        self.close().expect("Error while closing RabbitMQEvent Manager");
+    }
+}
 
+impl EventManager for RabbitMQEventManager {
 
     fn send<T>(&mut self, otenant: Option<&str>,t: T) -> Result<(),EventError>
         where T: EventType + Serialize{
@@ -70,7 +78,7 @@ impl EventManager for RabbitMQEventManager {
 
     fn add_consumer<T,C>(&mut self, otenant:Option<&str>, c: C)
     -> Result<ConsumerID,EventError>
-    where T: EventType + 'static + Clone + Sync + Send + DeserializeOwned,
+    where T: EventType + 'static + Sync + Send + DeserializeOwned,
         C: Consumer<T> + 'static + Clone + Sync + Send {
         let code = T::code();
 
@@ -132,25 +140,30 @@ impl EventManager for RabbitMQEventManager {
     }
 
     fn close(&mut self) -> Result<(),EventError>{
-         self.consumers.clear();
-        self.channel.close(0,"bye").wait().map_err(|le| EventError::CloseError(le.to_string()))?;
-        self.connection.close(0,"bye").wait().map_err(|le| EventError::CloseError(le.to_string()))?;
+        if self.opened {
+            self.opened=false;
+            info!("Closing RabbitMQEvent Manager");
+            self.consumers.clear();
+            self.channel.close(0,"bye").wait().map_err(|le| EventError::CloseError(le.to_string()))?;
+            self.connection.close(0,"bye").wait().map_err(|le| EventError::CloseError(le.to_string()))?;
+        }
         Ok(())
     }
 }
 
 #[derive(Clone)]
-struct Subscriber<T: EventType + Clone + Sync + Send, C: Consumer<T> + Clone + Sync + Send>  {
+struct Subscriber<T: EventType + Sync + Send, C: Consumer<T> + Clone + Sync + Send>  {
     channel: Channel,
     consumer: C,
     event_type: PhantomData<T>,
 }
 
-impl <T: EventType + Clone + Sync + Send+ DeserializeOwned, C: Consumer<T> + Clone + Sync + Send> Subscriber<T,C> {
+impl <T: EventType + Sync + Send+ DeserializeOwned, C: Consumer<T> + Clone + Sync + Send> Subscriber<T,C> {
     fn on_delivery(&self, delivery: Delivery) -> Result<(),EventError> {
-
+        
         let ge = serde_json::from_slice(&delivery.data)
             .map_err(|se| EventError::DeserializationError(se.to_string()))?;
+        trace!("on delivery: {}:{}",C::group(),delivery.routing_key);
         self.consumer.consume(ge).map_err(|_| EventError::NoConsumeError)?;
 
         self.channel
@@ -161,7 +174,7 @@ impl <T: EventType + Clone + Sync + Send+ DeserializeOwned, C: Consumer<T> + Clo
     }
 }
 
-impl <T: EventType + Clone + Sync + Send+ DeserializeOwned, C: Consumer<T> + Clone + Sync + Send> ConsumerDelegate for Subscriber<T,C> {
+impl <T: EventType + Sync + Send+ DeserializeOwned, C: Consumer<T> + Clone + Sync + Send> ConsumerDelegate for Subscriber<T,C> {
     fn on_new_delivery(&self, delivery: DeliveryResult) {
         if let Ok(Some(delivery)) = delivery {
             self.on_delivery(delivery).expect("error");

@@ -7,14 +7,15 @@ use rust_events_derive::*;
 use rust_events_rabbit::*;
 use serde::{Deserialize, Serialize};
 
+#[derive(Debug, Default, Clone, Serialize, Deserialize, EventType)]
+struct MyEvent {
+    message: String,
+}
+
+
 #[derive(Clone, Debug, ConsumerGroup)]
 struct MyConsumer {
     desc: String,
-}
-
-#[derive(Debug, Default, Clone, Serialize,Deserialize, EventType)]
-struct MyEvent {
-    message: String,
 }
 
 impl Consumer<MyEvent> for MyConsumer {
@@ -50,7 +51,6 @@ fn main() -> Result<(),EventError> {
         },
         3 => {
             mgr.send(get_tenant(&args[1]), MyEvent{message:args[2].clone()})?;
-            mgr.close()?;
         },
         _ => println!("Usage: (tenant or - for all) message?"),
     }

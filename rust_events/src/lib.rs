@@ -31,11 +31,12 @@ pub trait EventManager {
 
     fn add_consumer<T,C>(&mut self, otenant:Option<&str>, c: C)
         -> Result<ConsumerID,EventError>
-        where T: EventType + 'static + Clone + Sync + Send + DeserializeOwned,
+        where T: EventType + 'static + Sync + Send + DeserializeOwned,
             C: Consumer<T> + 'static + Clone + Sync + Send;
 
     fn close(&mut self)-> Result<(),EventError>;
 }
+
 
 
 pub trait ConsumerGroup {
