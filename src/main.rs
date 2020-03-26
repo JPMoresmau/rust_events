@@ -39,6 +39,7 @@ fn main() -> Result<(),EventError> {
 
     let mut mgr = RabbitMQEventManager::new(&addr, ConnectionProperties::default())?;
     let args: Vec<String> = env::args().collect();
+    println!("args: {}",args.len());
     match args.len() {
         2 => {
             mgr.add_consumer(get_tenant(&args[1]), MyConsumer{desc:format!("consumer for tenant {}",args[1])})?;

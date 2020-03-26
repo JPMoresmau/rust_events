@@ -27,16 +27,18 @@ impl RabbitMQEventManager {
       
     }
 
-    fn exchange_declare(&mut self, code: &str) -> Result<(),EventError>{
+    fn exchange_declare(&mut self, code: &str, kind: ExchangeKind) -> Result<(),EventError>{
         if !self.exchanges.contains(code){
 
-            self.channel.exchange_declare(code, ExchangeKind::Topic, ExchangeDeclareOptions::default(), FieldTable::default())
+            self.channel.exchange_declare(code, kind, ExchangeDeclareOptions::default(), FieldTable::default())
                 .wait()
                 .map_err(|le| EventError::SetupError(le.to_string()))?;
             self.exchanges.insert(code.to_owned());
         }
         Ok(())
     }
+
+
 }
 
 impl EventManager for RabbitMQEventManager {
@@ -45,7 +47,8 @@ impl EventManager for RabbitMQEventManager {
     fn send<T>(&mut self, otenant: Option<&str>,t: T) -> Result<(),EventError>
         where T: EventType + Serialize{
         let code = T::code();
-        self.exchange_declare(&code)?;
+        // topic exchange to route events properly
+        self.exchange_declare(&code, ExchangeKind::Topic)?;
         let mut routing_key=code.clone();
         routing_key.push_str(".");
         if let Some(tenant) = otenant {
@@ -67,7 +70,8 @@ impl EventManager for RabbitMQEventManager {
         C: Consumer<T> + 'static + Clone + Sync + Send {
         let code = T::code();
 
-        self.exchange_declare(&code)?;
+        // topic exchange to route events properly
+        self.exchange_declare(&code, ExchangeKind::Topic)?;
 
         let mut group = C::group();
         if let Some(tenant) = otenant {
@@ -75,20 +79,31 @@ impl EventManager for RabbitMQEventManager {
             group.push_str(tenant);
         } 
 
-        self.channel.queue_declare(&group,
-            QueueDeclareOptions::default(),
-            FieldTable::default())
-            .wait()
-            .map_err(|le| EventError::SetupError(le.to_string()))?;
         let mut routing_key=code.clone();
         if let Some(tenant) = otenant {
             routing_key.push_str(".");
             routing_key.push_str(tenant);
         } else {
-            routing_key.push_str(".#");
+            routing_key.push_str(".*");
         }
+        
+        // fanout exchange specific to this group
+        self.exchange_declare(&group, ExchangeKind::Fanout)?;
 
-        self.channel.queue_bind(&group,&code,&routing_key,QueueBindOptions::default(), FieldTable::default())
+        // bind publisher topic exchange to consumer fanout exchange
+        // destination comes before source!
+        self.channel.exchange_bind(&group,&code,&routing_key,ExchangeBindOptions::default(), FieldTable::default())
+            .wait()
+            .map_err(|le| EventError::SetupError(le.to_string()))?;
+
+        self.channel.queue_declare(&group,
+            QueueDeclareOptions::default(),
+            FieldTable::default())
+            .wait()
+            .map_err(|le| EventError::SetupError(le.to_string()))?;
+
+        // fanout exchange to queue
+        self.channel.queue_bind(&group,&group,"",QueueBindOptions::default(), FieldTable::default())
             .wait()
             .map_err(|le| EventError::SetupError(le.to_string()))?;
 
@@ -109,15 +124,11 @@ impl EventManager for RabbitMQEventManager {
         }
         self.consumers.insert(id.clone(), lc);
         Ok(id)
-        //.set_delegate(Box::new(Subscriber { channel: self.channel.clone() }));
-
+       
     }
 
     fn close(&mut self) -> Result<(),EventError>{
-        /* for c in self.consumers.iter(){
-            c.1..close(0,"bye").wait()?;
-        }*/
-        self.consumers.clear();
+         self.consumers.clear();
         self.channel.close(0,"bye").wait().map_err(|le| EventError::CloseError(le.to_string()))?;
         self.connection.close(0,"bye").wait().map_err(|le| EventError::CloseError(le.to_string()))?;
         Ok(())
