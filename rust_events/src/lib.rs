@@ -4,9 +4,6 @@ extern crate serde_json;
 use serde::{Deserialize, Serialize, de::DeserializeOwned};
 use std::time::SystemTime;
 
-pub mod rabbit;
-pub use rabbit::RabbitMQEventManager;
-
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum EventError {
     ConnectionError(String),
@@ -25,7 +22,7 @@ pub trait EventType {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
-pub struct ConsumerID(u64);
+pub struct ConsumerID(pub u64);
 
 pub trait EventManager {
 

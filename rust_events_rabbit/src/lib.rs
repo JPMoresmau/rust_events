@@ -1,3 +1,7 @@
+extern crate lapin;
+extern crate serde;
+extern crate rust_events;
+
 use lapin::{
     message::DeliveryResult, options::*, types::FieldTable, BasicProperties, Channel, Connection, message::Delivery, 
     ConnectionProperties, ConsumerDelegate,ExchangeKind,
@@ -5,7 +9,7 @@ use lapin::{
 
 use std::collections::{HashMap,HashSet};
 use serde::{Serialize,de::DeserializeOwned};
-use super::{Consumer,ConsumerID,EventError,EventInfo,EventType,EventManager,GenericEvent};
+use rust_events::{Consumer,ConsumerID,EventError,EventInfo,EventType,EventManager,GenericEvent};
 use std::time::SystemTime;
 use std::marker::PhantomData;
 

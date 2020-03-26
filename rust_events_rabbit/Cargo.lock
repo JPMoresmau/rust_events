@@ -749,9 +749,6 @@ dependencies = [
  "lapin",
  "log",
  "rust_events",
- "rust_events_derive",
- "serde",
- "serde_json",
 ]
 
 [[package]]
