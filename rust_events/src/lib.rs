@@ -1,6 +1,8 @@
 use serde::{Deserialize, Serialize, de::DeserializeOwned};
 use std::time::SystemTime;
 
+pub mod harness;
+
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum EventError {
     ConnectionError(String),
@@ -46,20 +48,20 @@ pub trait Consumer<T: EventType> : ConsumerGroup {
     fn consume(&self, t: GenericEvent<T>) -> Result<(),()>;
 }
 
-#[derive(Serialize, Deserialize, Debug, Clone)]
+#[derive(Serialize, Deserialize, Debug, Clone, Eq, PartialEq)]
 pub struct EventInfo {
     pub code: String,
     pub tenant: String,
     pub created: SystemTime,
 }
 
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Serialize, Deserialize, Debug, Eq, PartialEq)]
 pub struct GenericEvent<T: EventType> {
     pub info: EventInfo,
     pub data: T,
 }
 
-impl<T: EventType+Serialize> GenericEvent<T> {
+impl<T: EventType + Serialize> GenericEvent<T> {
     pub fn new(tenant: &str, data: T) -> Self { 
         Self {
             info: EventInfo {
@@ -75,3 +77,11 @@ impl<T: EventType+Serialize> GenericEvent<T> {
         serde_json::to_vec(self).map_err(|e| EventError::SerializationError(e.to_string()))
     }
 }
+
+
+impl<'a, T> GenericEvent<T> where T:EventType + Deserialize<'a> {
+    pub fn from_payload(payload: &'a Vec<u8>) -> Result<Self,EventError> {
+        serde_json::from_slice(payload).map_err(|se| EventError::DeserializationError(se.to_string()))
+    }
+}
+

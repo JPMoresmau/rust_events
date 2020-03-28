@@ -4,7 +4,7 @@ use lapin::{
 };
 
 use std::collections::{HashMap,HashSet};
-use serde::{Serialize,de::DeserializeOwned};
+use serde::{Serialize,de::DeserializeOwned,de::Deserialize};
 use rust_events::{Consumer,ConsumerID,EventError,EventInfo,EventType,EventManager,GenericEvent};
 use std::time::SystemTime;
 use std::marker::PhantomData;
@@ -153,11 +153,11 @@ struct Subscriber<T: EventType + Sync + Send, C: Consumer<T> + Clone + Sync + Se
     event_type: PhantomData<T>,
 }
 
-impl <T: EventType + Sync + Send+ DeserializeOwned, C: Consumer<T> + Clone + Sync + Send> Subscriber<T,C> {
-    fn on_delivery(&self, delivery: Delivery) -> Result<(),EventError> {
+impl <'a, T, C: Consumer<T> + Clone + Sync + Send> Subscriber<T,C>
+    where T: EventType + Sync + Send+ Deserialize<'a> {
+    fn on_delivery(&self, delivery: &'a Delivery) -> Result<(),EventError> {
         
-        let ge = serde_json::from_slice(&delivery.data)
-            .map_err(|se| EventError::DeserializationError(se.to_string()))?;
+        let ge =GenericEvent::from_payload(&delivery.data)?;
         trace!("on delivery: {}:{}",C::group(),delivery.routing_key);
         self.consumer.consume(ge).map_err(|_| EventError::NoConsumeError)?;
 
@@ -169,10 +169,11 @@ impl <T: EventType + Sync + Send+ DeserializeOwned, C: Consumer<T> + Clone + Syn
     }
 }
 
-impl <T: EventType + Sync + Send+ DeserializeOwned, C: Consumer<T> + Clone + Sync + Send> ConsumerDelegate for Subscriber<T,C> {
+impl <T, C: Consumer<T> + Clone + Sync + Send> ConsumerDelegate for Subscriber<T,C>
+    where T: EventType + Sync + Send+ DeserializeOwned {
     fn on_new_delivery(&self, delivery: DeliveryResult) {
         if let Ok(Some(delivery)) = delivery {
-            self.on_delivery(delivery).expect("error");
+            self.on_delivery(&delivery).expect("error");
         }
     }
 
