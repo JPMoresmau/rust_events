@@ -1,8 +1,3 @@
-extern crate lapin;
-extern crate serde;
-extern crate rust_events;
-extern crate log;
-
 use lapin::{
     message::DeliveryResult, options::*, types::FieldTable, BasicProperties, Channel, Connection, message::Delivery, 
     ConnectionProperties, ConsumerDelegate,ExchangeKind,

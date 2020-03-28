@@ -1,5 +1,3 @@
-extern crate rust_events_derive;
-
 use lapin::ConnectionProperties;
 use std::{env,thread, time};
 use rust_events::*;
