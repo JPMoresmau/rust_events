@@ -80,19 +80,19 @@ impl EventManager for RabbitMQEventManager {
         // topic exchange to route events properly
         self.exchange_declare(&code, ExchangeKind::Topic)?;
 
-        let mut group = C::group();
-        if let Some(tenant) = otenant {
-            group.push_str(".");
-            group.push_str(tenant);
-        } 
+        let group =
+            if let Some(tenant) = otenant {
+                format!("{}.{}",C::group(),tenant)
+            } else {
+                C::group()
+            };
 
-        let mut routing_key=code.clone();
-        if let Some(tenant) = otenant {
-            routing_key.push_str(".");
-            routing_key.push_str(tenant);
-        } else {
-            routing_key.push_str(".*");
-        }
+        let routing_key=
+            if let Some(tenant) = otenant {
+                format!("{}.{}",code,tenant)
+            } else {
+                format!("{}.*",code)
+            };
         
         // fanout exchange specific to this group
         self.exchange_declare(&group, ExchangeKind::Fanout)?;
@@ -113,16 +113,16 @@ impl EventManager for RabbitMQEventManager {
         self.channel.queue_bind(&group,&group,"",QueueBindOptions::default(), FieldTable::default())
             .wait()
             .map_err(|le| EventError::SetupError(le.to_string()))?;
-
+        
         let lc = self.channel.basic_consume(
             &group,
-            &group,
+            "",
             BasicConsumeOptions::default(),
             FieldTable::default(),
         )
         .wait()
         .map_err(|le| EventError::SetupError(le.to_string()))?;
-
+        
         lc.set_delegate(Box::new(Subscriber { channel: self.channel.clone(),consumer:c,event_type:PhantomData}));
 
         let mut id = ConsumerID(self.consumers.len() as u64);

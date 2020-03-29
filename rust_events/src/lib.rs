@@ -48,14 +48,14 @@ pub trait Consumer<T: EventType> : ConsumerGroup {
     fn consume(&self, t: GenericEvent<T>) -> Result<(),()>;
 }
 
-#[derive(Serialize, Deserialize, Debug, Clone, Eq, PartialEq)]
+#[derive(Serialize, Deserialize, Debug, Clone, Eq, PartialEq, PartialOrd, Ord)]
 pub struct EventInfo {
     pub code: String,
     pub tenant: String,
     pub created: SystemTime,
 }
 
-#[derive(Serialize, Deserialize, Debug, Eq, PartialEq)]
+#[derive(Serialize, Deserialize, Debug, Clone, Eq, PartialEq, PartialOrd, Ord)]
 pub struct GenericEvent<T: EventType> {
     pub info: EventInfo,
     pub data: T,
