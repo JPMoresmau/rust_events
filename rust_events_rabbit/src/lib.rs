@@ -1,5 +1,5 @@
 use lapin::{
-    message::DeliveryResult, options::*, types::FieldTable, BasicProperties, Channel, Connection, message::Delivery, 
+    message::DeliveryResult, options::*, types::{FieldTable,AMQPValue}, BasicProperties, Channel, Connection, message::Delivery, 
     ConnectionProperties, ConsumerDelegate,ExchangeKind,
 };
 
@@ -8,13 +8,14 @@ use serde::{Serialize,de::DeserializeOwned,de::Deserialize};
 use rust_events::{Consumer,ConsumerID,EventError,EventInfo,EventType,EventManager,GenericEvent};
 use std::time::SystemTime;
 use std::marker::PhantomData;
-use log::{info, trace};
+use log::{info, trace, error};
 
 pub struct RabbitMQEventManager {
     opened: bool,
     connection: Connection,
     channel: Channel,
     exchanges: HashSet<String>,
+    queues: HashSet<(String,String)>,
     consumers: HashMap<ConsumerID,lapin::Consumer>,
 }
 
@@ -23,7 +24,8 @@ impl RabbitMQEventManager {
         Connection::connect(uri, options)
             .wait()
             .and_then(|connection| {
-                connection.create_channel().wait().map(|channel| RabbitMQEventManager {opened:true,connection,channel,exchanges: HashSet::new(), consumers: HashMap::new()}) 
+                connection.create_channel().wait().map(|channel| RabbitMQEventManager {opened:true,connection,channel,
+                    exchanges: HashSet::new(),queues: HashSet::new(), consumers: HashMap::new()}) 
             })
             .map_err(|le| EventError::ConnectionError(le.to_string()))
       
@@ -45,7 +47,7 @@ impl RabbitMQEventManager {
 
 impl Drop for RabbitMQEventManager {
     fn drop(&mut self) {
-        self.close().expect("Error while closing RabbitMQEvent Manager");
+        self.close().unwrap_or_else(|e| error!("Cannot close RabbitMQEventManager: {:?}",e));
     }
 }
 
@@ -93,27 +95,34 @@ impl EventManager for RabbitMQEventManager {
             } else {
                 format!("{}.*",code)
             };
+        let key = (group.clone(),routing_key.clone());
+        if !self.queues.contains(&key){
+            self.queues.insert(key);
+            // fanout exchange specific to this group
+            self.exchange_declare(&group, ExchangeKind::Fanout)?;
+
+            // bind publisher topic exchange to consumer fanout exchange
+            // destination comes before source!
+            self.channel.exchange_bind(&group,&code,&routing_key,ExchangeBindOptions::default(), FieldTable::default())
+                .wait()
+                .map_err(|le| EventError::SetupError(le.to_string()))?;
+                
+            let mut ft=FieldTable::default();
+            ft.insert("x-expires".into(),AMQPValue::LongUInt(600000));
+
+            self.channel.queue_declare(&group,
+                QueueDeclareOptions::default(),
+                ft
+                )
+                .wait()
+                .map_err(|le| EventError::SetupError(le.to_string()))?;
+
+            // fanout exchange to queue
         
-        // fanout exchange specific to this group
-        self.exchange_declare(&group, ExchangeKind::Fanout)?;
-
-        // bind publisher topic exchange to consumer fanout exchange
-        // destination comes before source!
-        self.channel.exchange_bind(&group,&code,&routing_key,ExchangeBindOptions::default(), FieldTable::default())
-            .wait()
-            .map_err(|le| EventError::SetupError(le.to_string()))?;
-
-        self.channel.queue_declare(&group,
-            QueueDeclareOptions::default(),
-            FieldTable::default())
-            .wait()
-            .map_err(|le| EventError::SetupError(le.to_string()))?;
-
-        // fanout exchange to queue
-        self.channel.queue_bind(&group,&group,"",QueueBindOptions::default(), FieldTable::default())
-            .wait()
-            .map_err(|le| EventError::SetupError(le.to_string()))?;
-        
+            self.channel.queue_bind(&group,&group,"",QueueBindOptions::default(), FieldTable::default())
+                .wait()
+                .map_err(|le| EventError::SetupError(le.to_string()))?;
+        }
         let lc = self.channel.basic_consume(
             &group,
             "",
@@ -138,9 +147,12 @@ impl EventManager for RabbitMQEventManager {
         if self.opened {
             self.opened=false;
             info!("Closing RabbitMQEvent Manager");
+            
+            self.exchanges.clear();
+            self.queues.clear();
             self.consumers.clear();
-            self.channel.close(0,"bye").wait().map_err(|le| EventError::CloseError(le.to_string()))?;
-            self.connection.close(0,"bye").wait().map_err(|le| EventError::CloseError(le.to_string()))?;
+            self.channel.close(200, "OK").wait().map_err(|le| EventError::CloseError(le.to_string()))?;
+            self.connection.close(200, "OK").wait().map_err(|le| EventError::CloseError(le.to_string()))?;
         }
         Ok(())
     }

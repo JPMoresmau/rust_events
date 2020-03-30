@@ -728,6 +728,8 @@ dependencies = [
 name = "rust_events"
 version = "0.1.0"
 dependencies = [
+ "env_logger",
+ "log",
  "rust_events_derive",
  "serde",
  "serde_json",

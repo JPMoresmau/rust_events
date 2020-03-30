@@ -13,14 +13,20 @@ macro_rules! event_tests {
             use std::sync::{Mutex, Arc};
             use std::{thread,time};
 
+            fn init_logger() {
+                let _ = env_logger::builder().is_test(true).try_init();
+            }
+
             #[test]
             fn test_open_close() -> Result<(),EventError>{
+                init_logger();
                 let mut mgr = $mgr?;
                 mgr.close()
             }
             
             #[test]
             fn test_1_tenant_1_tenant()  -> Result<(),EventError>{
+                init_logger();
                 let mut mgr = $mgr?;
                 let events = Arc::new(Mutex::new(Vec::new()));
                 mgr.add_consumer(Some("tenant1"), StringAccumulateConsumer{accum:Arc::clone(&events)})?;
@@ -37,13 +43,13 @@ macro_rules! event_tests {
                     assert_eq!("tenant1",&v[1].info.tenant);
                     assert_eq!("StringEvent",&v[0].info.code);
                     assert_eq!("StringEvent",&v[1].info.code);
-                    
                 }
                 mgr.close()
             }
 
             #[test]
             fn test_1_tenant_2_tenant()  -> Result<(),EventError>{
+                init_logger();
                 let mut mgr = $mgr?;
                 let events = Arc::new(Mutex::new(Vec::new()));
                 mgr.add_consumer(Some("tenant1"), StringAccumulateConsumer{accum:Arc::clone(&events)})?;
