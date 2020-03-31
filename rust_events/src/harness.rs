@@ -30,20 +30,21 @@ macro_rules! event_tests {
                 let mut mgr = $mgr?;
                 let events = Arc::new(Mutex::new(Vec::new()));
                 mgr.add_consumer(Some("tenant1"), StringAccumulateConsumer{accum:Arc::clone(&events)})?;
-                mgr.send(Some("tenant1"), StringEvent{message:"message1".to_owned()})?;
-                mgr.send(Some("tenant1"), StringEvent{message:"message2".to_owned()})?;
+                mgr.send(Some("tenant1"), StringEvent{message:"1_tenant_1_tenant_1".to_owned()})?;
+                mgr.send(Some("tenant1"), StringEvent{message:"1_tenant_1_tenant_2".to_owned()})?;
                 assert!(wait_for_condition(5,|| events.lock().unwrap().len()==2),"events vector not filled");
                 {
                     let mut v = events.lock().unwrap();
                     assert_eq!(2,v.len());
                     v.sort();
-                    assert_eq!("message1",&v[0].data.message);
-                    assert_eq!("message2",&v[1].data.message);
+                    assert_eq!("1_tenant_1_tenant_1",&v[0].data.message);
+                    assert_eq!("1_tenant_1_tenant_2",&v[1].data.message);
                     assert_eq!("tenant1",&v[0].info.tenant);
                     assert_eq!("tenant1",&v[1].info.tenant);
                     assert_eq!("StringEvent",&v[0].info.code);
                     assert_eq!("StringEvent",&v[1].info.code);
                 }
+                mgr.clean()?;
                 mgr.close()
             }
 
@@ -54,23 +55,76 @@ macro_rules! event_tests {
                 let events = Arc::new(Mutex::new(Vec::new()));
                 mgr.add_consumer(Some("tenant1"), StringAccumulateConsumer{accum:Arc::clone(&events)})?;
                 mgr.add_consumer(Some("tenant1"), StringAccumulateConsumer{accum:Arc::clone(&events)})?;
-                mgr.send(Some("tenant1"), StringEvent{message:"message1".to_owned()})?;
-                mgr.send(Some("tenant1"), StringEvent{message:"message2".to_owned()})?;
+                mgr.send(Some("tenant1"), StringEvent{message:"1_tenant_2_tenant_1".to_owned()})?;
+                mgr.send(Some("tenant1"), StringEvent{message:"1_tenant_2_tenant_2".to_owned()})?;
                 assert!(wait_for_condition(5,|| events.lock().unwrap().len()==2),"events vector not filled");
                 {
                     let mut v = events.lock().unwrap();
                     assert_eq!(2,v.len());
                     v.sort();
-                    assert_eq!("message1",&v[0].data.message);
-                    assert_eq!("message2",&v[1].data.message);
+                    assert_eq!("1_tenant_2_tenant_1",&v[0].data.message);
+                    assert_eq!("1_tenant_2_tenant_2",&v[1].data.message);
                     assert_eq!("tenant1",&v[0].info.tenant);
                     assert_eq!("tenant1",&v[1].info.tenant);
                     assert_eq!("StringEvent",&v[0].info.code);
                     assert_eq!("StringEvent",&v[1].info.code);
                     
                 }
+                mgr.clean()?;
                 mgr.close()
             }
+
+            #[test]
+            fn test_1_shared_1_shared()  -> Result<(),EventError>{
+                init_logger();
+                let mut mgr = $mgr?;
+                let events = Arc::new(Mutex::new(Vec::new()));
+                mgr.add_consumer(None, StringAccumulateConsumer{accum:Arc::clone(&events)})?;
+                mgr.send(None, StringEvent{message:"1_shared_1_shared_1".to_owned()})?;
+                mgr.send(None, StringEvent{message:"1_shared_1_shared_2".to_owned()})?;
+                assert!(wait_for_condition(5,|| events.lock().unwrap().len()==2),"events vector not filled");
+                {
+                    let mut v = events.lock().unwrap();
+                    assert_eq!(2,v.len());
+                    v.sort();
+                    assert_eq!("1_shared_1_shared_1",&v[0].data.message);
+                    assert_eq!("1_shared_1_shared_2",&v[1].data.message);
+                    assert_eq!("",&v[0].info.tenant);
+                    assert_eq!("",&v[1].info.tenant);
+                    assert_eq!("StringEvent",&v[0].info.code);
+                    assert_eq!("StringEvent",&v[1].info.code);
+                    
+                }
+                mgr.clean()?;
+                mgr.close()
+            }
+
+            #[test]
+            fn test_2_tenant_1_shared()  -> Result<(),EventError>{
+                init_logger();
+                let mut mgr = $mgr?;
+                let events = Arc::new(Mutex::new(Vec::new()));
+                mgr.add_consumer(None, StringAccumulateConsumer{accum:Arc::clone(&events)})?;
+                mgr.send(Some("tenant1"), StringEvent{message:"2_tenant_1_shared_1".to_owned()})?;
+                mgr.send(Some("tenant2"), StringEvent{message:"2_tenant_1_shared_2".to_owned()})?;
+                assert!(wait_for_condition(5,|| events.lock().unwrap().len()==2),"events vector not filled");
+                {
+                    let mut v = events.lock().unwrap();
+                    assert_eq!(2,v.len());
+                    v.sort();
+                    assert_eq!("2_tenant_1_shared_1",&v[0].data.message);
+                    assert_eq!("2_tenant_1_shared_2",&v[1].data.message);
+                    assert_eq!("tenant1",&v[0].info.tenant);
+                    assert_eq!("tenant2",&v[1].info.tenant);
+                    assert_eq!("StringEvent",&v[0].info.code);
+                    assert_eq!("StringEvent",&v[1].info.code);
+                    
+                }
+                mgr.clean()?;
+                mgr.close()
+            }
+
+
     };
 }
 

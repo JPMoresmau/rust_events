@@ -42,6 +42,8 @@ impl RabbitMQEventManager {
         Ok(())
     }
 
+    
+
 
 }
 
@@ -156,6 +158,16 @@ impl EventManager for RabbitMQEventManager {
         }
         Ok(())
     }
+
+    fn clean(&mut self) -> Result<(),EventError>{
+        self.queues.iter().try_for_each(|(group, _rk)|{
+            self.channel.queue_delete(&group,QueueDeleteOptions::default()).wait().map(|_u| ()).map_err(|le| EventError::CleanError(le.to_string()))
+        })?;
+        self.exchanges.iter().try_for_each(|e| {
+            self.channel.exchange_delete(e,ExchangeDeleteOptions::default()).wait().map_err(|le| EventError::CleanError(le.to_string()))
+        })?;
+        Ok(())
+    }
 }
 
 #[derive(Clone)]
@@ -185,7 +197,7 @@ impl <T, C: Consumer<T> + Clone + Sync + Send> ConsumerDelegate for Subscriber<T
     where T: EventType + Sync + Send+ DeserializeOwned {
     fn on_new_delivery(&self, delivery: DeliveryResult) {
         if let Ok(Some(delivery)) = delivery {
-            self.on_delivery(&delivery).expect("error");
+            self.on_delivery(&delivery).unwrap();
         }
     }
 

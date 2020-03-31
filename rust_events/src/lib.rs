@@ -13,6 +13,7 @@ pub enum EventError {
     CloseError(String),
     AckError(String),
     OtherError(String),
+    CleanError(String),
     NoConsumeError,
 }
 
@@ -34,6 +35,8 @@ pub trait EventManager {
             C: Consumer<T> + 'static + Clone + Sync + Send;
 
     fn close(&mut self)-> Result<(),EventError>;
+
+    fn clean(&mut self)-> Result<(),EventError>;
 }
 
 
