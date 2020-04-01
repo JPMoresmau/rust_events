@@ -1,9 +1,13 @@
+//! # rust_events_derive
+//! 
+//! Derive macros to easily define event types and consumer groups
 extern crate proc_macro;
 
 use crate::proc_macro::TokenStream;
 use quote::quote;
 use syn;
 
+/// EventType code is the actual type name
 #[proc_macro_derive(EventType)]
 pub fn event_type_derive(input: TokenStream) -> TokenStream {
     let ast = syn::parse(input).unwrap();
@@ -23,6 +27,7 @@ fn impl_event_type(ast: &syn::DeriveInput) -> TokenStream {
     gen.into()
 }
 
+/// Consumer group is the actual type name
 #[proc_macro_derive(ConsumerGroup)]
 pub fn consumer_group_derive(input: TokenStream) -> TokenStream {
     let ast = syn::parse(input).unwrap();

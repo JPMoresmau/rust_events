@@ -1,3 +1,4 @@
+//! Test RabbitMQ manager
 use rust_events::event_tests;
 use lapin::ConnectionProperties;
 

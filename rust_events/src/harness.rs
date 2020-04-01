@@ -1,9 +1,16 @@
+//! # Test harness
+//! 
+//! Maybe this could be in a separate crate, but hey
+//! 
+//! These tests should pass on any implementation of EventManager
+
 use super::*;
 use rust_events_derive::*;
 use serde::{Deserialize, Serialize};
 use std::sync::{Mutex, Arc};
 use std::{thread,time};
 
+/// Macro generating the tests from the given expression yielding an EventManager
 #[macro_export]
 macro_rules! event_tests {
     ($mgr:expr) => {
@@ -128,6 +135,8 @@ macro_rules! event_tests {
     };
 }
 
+/// Wait up to max_seconds for the condition to be true
+/// The condition is given by the result of the cond closure
 pub fn wait_for_condition<F>(max_seconds:u32, cond:F) -> bool 
     where F: Fn() -> bool {
     for _a in 0..max_seconds*10 {
@@ -139,16 +148,19 @@ pub fn wait_for_condition<F>(max_seconds:u32, cond:F) -> bool
     false
 }
 
+/// A very simple event with a simple String content
 #[derive(Debug, Default, Clone, Serialize, Deserialize, EventType, Eq, PartialEq, PartialOrd, Ord)]
 pub struct StringEvent {
     pub message: String,
 }
 
+/// A consumer that accumulates string events into a shared Vec
 #[derive(Clone, Debug, ConsumerGroup)]
 pub struct StringAccumulateConsumer {
     pub accum: Arc<Mutex<Vec<GenericEvent<StringEvent>>>>,
 }
 
+/// Implementation of Consumer
 impl Consumer<StringEvent> for StringAccumulateConsumer {
 
     fn consume(&self, t: GenericEvent<StringEvent>) -> Result<(),()>{

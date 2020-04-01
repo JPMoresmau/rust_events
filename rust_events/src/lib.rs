@@ -1,8 +1,14 @@
+//! # rust_events library
+//! 
+//! Abstract the underlying messaging technology under one generic interface
+//!
+
 use serde::{Deserialize, Serialize, de::DeserializeOwned};
 use std::time::SystemTime;
 
 pub mod harness;
 
+/// The different errors that can occur
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum EventError {
     ConnectionError(String),
@@ -17,54 +23,72 @@ pub enum EventError {
     NoConsumeError,
 }
 
+/// The type of event
 pub trait EventType {
+    /// The event code to use
     fn code() -> String;
 }
 
+/// A consumer ID to identify a consumer within a manager
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct ConsumerID(pub u64);
 
+/// The Event Manager is the main trait, offering functions to send and consume events
 pub trait EventManager {
 
+    /// Send an event optionally related to a tenant
     fn send<T>(&mut self, otenant: Option<&str>,t: T) -> Result<(),EventError>
         where T: EventType + Serialize;
 
+    /// Add a consumer to handle specifi events, optionally for a specific tenant
     fn add_consumer<T,C>(&mut self, otenant:Option<&str>, c: C)
         -> Result<ConsumerID,EventError>
         where T: EventType + 'static + Sync + Send + DeserializeOwned,
             C: Consumer<T> + 'static + Clone + Sync + Send;
 
+    /// Close the manager and all the resources it holds
     fn close(&mut self)-> Result<(),EventError>;
 
+    /// Clean the underlying system, usually to ensure tests start from a clean slate
     fn clean(&mut self)-> Result<(),EventError>;
 }
 
 
-
+/// Consumer Group trait, giving the group to use
+/// 
+/// Only one consumer within the same group will get an event
 pub trait ConsumerGroup {
-
+    /// the consumer group to use
     fn group() -> String;
 }
 
+/// Consumer trait defining what to do with the event
 pub trait Consumer<T: EventType> : ConsumerGroup {
 
     fn consume(&self, t: GenericEvent<T>) -> Result<(),()>;
 }
 
+/// General info on all events
 #[derive(Serialize, Deserialize, Debug, Clone, Eq, PartialEq, PartialOrd, Ord)]
 pub struct EventInfo {
+    /// Event Code
     pub code: String,
+    /// Tenant or empty if none
     pub tenant: String,
+    /// Creation timestamp
     pub created: SystemTime,
 }
 
+/// Generic event holds the event info + specific event structure
 #[derive(Serialize, Deserialize, Debug, Clone, Eq, PartialEq, PartialOrd, Ord)]
 pub struct GenericEvent<T: EventType> {
     pub info: EventInfo,
     pub data: T,
 }
 
+/// Generic event helper functions
 impl<T: EventType + Serialize> GenericEvent<T> {
+    /// Create a new Generic Event
     pub fn new(tenant: &str, data: T) -> Self { 
         Self {
             info: EventInfo {
@@ -76,13 +100,15 @@ impl<T: EventType + Serialize> GenericEvent<T> {
         }
     }
 
+    /// Convert event to binary payload
     pub fn payload(&self) -> Result<Vec<u8>,EventError> {
         serde_json::to_vec(self).map_err(|e| EventError::SerializationError(e.to_string()))
     }
 }
 
-
+/// Generic event deserialize functions
 impl<'a, T> GenericEvent<T> where T:EventType + Deserialize<'a> {
+    /// Deserialiez from binary payload
     pub fn from_payload(payload: &'a Vec<u8>) -> Result<Self,EventError> {
         serde_json::from_slice(payload).map_err(|se| EventError::DeserializationError(se.to_string()))
     }
