@@ -16,6 +16,7 @@ pub enum EventError {
     SerializationError(String),
     DeserializationError(String),
     SendError(String),
+    ReceiveError(String),
     CloseError(String),
     AckError(String),
     OtherError(String),
@@ -109,7 +110,7 @@ impl<T: EventType + Serialize> GenericEvent<T> {
 /// Generic event deserialize functions
 impl<'a, T> GenericEvent<T> where T:EventType + Deserialize<'a> {
     /// Deserialiez from binary payload
-    pub fn from_payload(payload: &'a Vec<u8>) -> Result<Self,EventError> {
+    pub fn from_payload(payload: &'a[u8]) -> Result<Self,EventError> {
         serde_json::from_slice(payload).map_err(|se| EventError::DeserializationError(se.to_string()))
     }
 }
