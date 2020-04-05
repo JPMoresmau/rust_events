@@ -1,3 +1,4 @@
+//! Example of RabbitMQ usage
 use lapin::ConnectionProperties;
 use std::{env,thread, time};
 use rust_events::*;

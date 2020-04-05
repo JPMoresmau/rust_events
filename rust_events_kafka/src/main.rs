@@ -1,3 +1,4 @@
+//! Example of Kafka usage
 #[macro_use] extern crate maplit;
 
 use std::{env,thread, time};
