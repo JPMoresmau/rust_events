@@ -25,10 +25,10 @@ impl Consumer<MyEvent> for MyConsumer {
 }
 
 
-fn get_tenant(ot: &str)-> Option<&str> {
+fn get_tenant(ot: &str)-> &str {
     match ot{
-        "-" => None,
-        _ => Some(ot),
+        "-" => "",
+        _ => ot,
     }
 }
 

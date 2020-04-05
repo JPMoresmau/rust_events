@@ -13,7 +13,6 @@ use std::time::SystemTime;
 use futures::executor::ThreadPool;
 use futures::executor;
 use futures::StreamExt;
-use futures::lock::Mutex;
 use std::sync::{Arc};
 use log::{info, trace, error};
 
@@ -25,7 +24,7 @@ pub struct KafkaEventManager {
     thread_pool: ThreadPool,
     producer: FutureProducer,
      /// opened consumers by ID
-    consumers: HashMap<ConsumerID,Arc<Mutex<StreamConsumer>>>,
+    consumers: HashMap<ConsumerID,Arc<StreamConsumer>>,
 }
 
 impl KafkaEventManager {
@@ -41,13 +40,13 @@ impl KafkaEventManager {
 
     }
 
-    fn consume<'a,M:Message,T,C>(m: &'a M,c:&C,otenant:&Option<String>) -> Result<(),EventError>
+    fn consume<'a,M:Message,T,C>(m: &'a M,c:&C,tenant:&String) -> Result<(),EventError>
         where T: EventType + 'static + Sync + Send + Deserialize<'a>,
             C: Consumer<T> + 'static + Clone + Sync + Send {
         match m.payload() {
             Some(p) => {
                 let ge =GenericEvent::from_payload(&p)?;
-                if otenant.is_none() || ge.info.tenant==*otenant.as_ref().unwrap() {
+                if tenant.is_empty() || ge.info.tenant==*tenant {
                     trace!("on delivery: {}:{}.{}",C::group(),ge.info.code,ge.info.tenant);
                     c.consume(ge).map_err(|_| EventError::NoConsumeError)?;
                 }
@@ -62,12 +61,12 @@ impl KafkaEventManager {
 }
 
 impl EventManager for KafkaEventManager {
-    fn send<T>(&mut self, otenant: Option<&str>,t: T) -> Result<(),EventError>
+    fn send<T>(&mut self, tenant: &str,t: T) -> Result<(),EventError>
         where T: EventType + Serialize{
             let code = T::code();
             let ge=GenericEvent{info:EventInfo {
                 code: code.clone(),
-                tenant: otenant.map(|s| s.to_owned()).unwrap_or_default(),
+                tenant: tenant.to_owned(),
                 created: SystemTime::now(),
             },data:t};
             let payload = ge.payload()?;
@@ -81,16 +80,16 @@ impl EventManager for KafkaEventManager {
            
     }
 
-    fn add_consumer<T,C>(&mut self, otenant:Option<&str>, c: C)
+    fn add_consumer<T,C>(&mut self, tenant:&str, c: C)
     -> Result<ConsumerID,EventError>
     where T: EventType + 'static + Sync + Send + DeserializeOwned,
         C: Consumer<T> + 'static + Clone + Sync + Send {
             let code = T::code();
             let group =
-                if let Some(tenant) = otenant {
-                    format!("{}.{}",C::group(),tenant)
-                } else {
+                if tenant.is_empty() {
                     C::group()
+                } else {
+                    format!("{}.{}",C::group(),tenant)
                 };
 
             let consumer:StreamConsumer = self.params.iter().fold( &mut ClientConfig::new(), |cc,(k,v)| {
@@ -98,21 +97,19 @@ impl EventManager for KafkaEventManager {
             }).set("group.id", &group).set("enable.auto.commit", "false").create().map_err(|le| EventError::ConnectionError(le.to_string()))?;
 
             consumer.subscribe(&[&code]).map_err(|le| EventError::SetupError(le.to_string()))?;
-            let amc = Arc::new(Mutex::new(consumer));
+            let amc = Arc::new(consumer);
             let amc2 = Arc::clone(&amc);
 
-            let ot=otenant.map(|s| s.to_owned());
-
+            let ot=tenant.to_owned();
             self.thread_pool.spawn_ok( async move {
-                let kc = amc2.lock().await;
-                let mut ms = kc.start();
+                let mut ms = amc2.start();
                 while let Some(message) = ms.next().await {
                     match message {
                         Err(e) => error!("{:?}", EventError::ReceiveError(e.to_string())),
                         Ok(m) => {
                             KafkaEventManager::consume(&m, &c, &ot).unwrap_or_else(|ee| error!("{:?}",ee));
                           
-                            kc.commit_message(&m, CommitMode::Async).unwrap();
+                            amc2.commit_message(&m, CommitMode::Async).unwrap();
                         }
                     } ;
                 }
@@ -133,7 +130,7 @@ impl EventManager for KafkaEventManager {
             self.opened=false;
             info!("Closing KafkaEventManager");
             self.producer.flush(Timeout::After(Duration::from_secs(10)));
-            self.consumers.values().for_each(|c|  executor::block_on(async {c.lock().await.stop()}));
+            self.consumers.values().for_each(|c| c.stop());
             
             self.consumers.clear();
         }

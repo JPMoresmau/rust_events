@@ -37,12 +37,12 @@ pub struct ConsumerID(pub u64);
 /// The Event Manager is the main trait, offering functions to send and consume events
 pub trait EventManager {
 
-    /// Send an event optionally related to a tenant
-    fn send<T>(&mut self, otenant: Option<&str>,t: T) -> Result<(),EventError>
+    /// Send an event optionally related to a tenant (use empty string for no tenant)
+    fn send<T>(&mut self, tenant: &str,t: T) -> Result<(),EventError>
         where T: EventType + Serialize;
 
-    /// Add a consumer to handle specifi events, optionally for a specific tenant
-    fn add_consumer<T,C>(&mut self, otenant:Option<&str>, c: C)
+    /// Add a consumer to handle specific events, optionally for a specific tenant (use empty string for no tenant)
+    fn add_consumer<T,C>(&mut self, tenant:&str, c: C)
         -> Result<ConsumerID,EventError>
         where T: EventType + 'static + Sync + Send + DeserializeOwned,
             C: Consumer<T> + 'static + Clone + Sync + Send;

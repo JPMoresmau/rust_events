@@ -66,19 +66,15 @@ impl Drop for RabbitMQEventManager {
 impl EventManager for RabbitMQEventManager {
 
     /// Send an event to an Exchange called after the event code
-    fn send<T>(&mut self, otenant: Option<&str>,t: T) -> Result<(),EventError>
+    fn send<T>(&mut self, tenant: &str,t: T) -> Result<(),EventError>
         where T: EventType + Serialize{
         let code = T::code();
         // topic exchange to route events properly
         self.exchange_declare(&code, ExchangeKind::Topic)?;
-        let mut routing_key=code.clone();
-        routing_key.push_str(".");
-        if let Some(tenant) = otenant {
-           routing_key.push_str(tenant);
-        }
-        let ge=GenericEvent{info:EventInfo{
+        let routing_key=format!("{}.{}",code,tenant);
+         let ge=GenericEvent{info:EventInfo{
             code: code.clone(),
-            tenant: otenant.map(|s| s.to_owned()).unwrap_or_default(),
+            tenant: tenant.to_owned(),
             created: SystemTime::now(),
         },data:t};
         ge.payload().and_then(|v| self.channel.basic_publish(&code,&routing_key, BasicPublishOptions::default(),v,BasicProperties::default())
@@ -87,7 +83,7 @@ impl EventManager for RabbitMQEventManager {
     }
 
     /// Add a consumer by creating queues, exchanges and exchange binding
-    fn add_consumer<T,C>(&mut self, otenant:Option<&str>, c: C)
+    fn add_consumer<T,C>(&mut self, tenant:&str, c: C)
     -> Result<ConsumerID,EventError>
     where T: EventType + 'static + Sync + Send + DeserializeOwned,
         C: Consumer<T> + 'static + Clone + Sync + Send {
@@ -97,17 +93,17 @@ impl EventManager for RabbitMQEventManager {
         self.exchange_declare(&code, ExchangeKind::Topic)?;
 
         let group =
-            if let Some(tenant) = otenant {
-                format!("{}.{}",C::group(),tenant)
-            } else {
+            if tenant.is_empty() {
                 C::group()
+            } else {
+                format!("{}.{}",C::group(),tenant)
             };
 
         let routing_key=
-            if let Some(tenant) = otenant {
-                format!("{}.{}",code,tenant)
-            } else {
+            if tenant.is_empty() {
                 format!("{}.*",code)
+            } else {
+                format!("{}.{}",code,tenant)
             };
         let key = (group.clone(),routing_key.clone());
         if !self.queues.contains(&key){
