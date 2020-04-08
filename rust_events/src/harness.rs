@@ -22,7 +22,7 @@ macro_rules! event_tests {
             use std::sync::{Mutex, Arc};
             use std::{thread,time};
             use log::{trace};
-            
+            use futures::executor;
 
             fn init_logger() {
                 let _ = env_logger::builder().is_test(true).try_init();
@@ -36,119 +36,131 @@ macro_rules! event_tests {
             }
             
             #[test]
-            fn test_1_tenant_1_tenant()  -> Result<(),EventError>{
+            fn test_1_tenant_1_tenant()  -> EventResult<()> {
                 init_logger();
-                let mut mgr = $mgr?;
-                let events = Arc::new(Mutex::new(Vec::new()));
-                mgr.add_consumer("tenant1", StringAccumulateConsumer{accum:Arc::clone(&events)})?;
-                // depending on the underlying system, we cannot be sure messages from a previous tests are not going to be sent, so let's purge the old messages
-                thread::sleep(time::Duration::from_millis($wait*1000));
-                events.lock().unwrap().clear();
-                mgr.send("tenant1", StringEvent{message:"1_tenant_1_tenant_1".to_owned()})?;
-                mgr.send("tenant1", StringEvent{message:"1_tenant_1_tenant_2".to_owned()})?;
-                assert!(wait_for_condition($delay,|| events.lock().unwrap().len()==2),"events vector not filled: {:?}",events.lock().unwrap());
-                {
-                    let mut v = events.lock().unwrap();
-                    assert_eq!(2,v.len());
-                    v.sort();
-                    assert_eq!("1_tenant_1_tenant_1",&v[0].data.message);
-                    assert_eq!("1_tenant_1_tenant_2",&v[1].data.message);
-                    assert_eq!("tenant1",&v[0].info.tenant);
-                    assert_eq!("tenant1",&v[1].info.tenant);
-                    assert_eq!("StringEvent",&v[0].info.code);
-                    assert_eq!("StringEvent",&v[1].info.code);
-                }
-                mgr.clean()?;
-                mgr.close()?;
-                Ok(())
+                let f = async {
+                    let mut mgr = $mgr?;
+                    let events = Arc::new(Mutex::new(Vec::new()));
+                    mgr.add_consumer("tenant1", StringAccumulateConsumer{accum:Arc::clone(&events)})?;
+                    // depending on the underlying system, we cannot be sure messages from a previous tests are not going to be sent, so let's purge the old messages
+                    thread::sleep(time::Duration::from_millis($wait*1000));
+                    events.lock().unwrap().clear();
+                    mgr.send("tenant1", StringEvent{message:"1_tenant_1_tenant_1".to_owned()}).await?;
+                    mgr.send("tenant1", StringEvent{message:"1_tenant_1_tenant_2".to_owned()}).await?;
+                    assert!(wait_for_condition($delay,|| events.lock().unwrap().len()==2),"events vector not filled: {:?}",events.lock().unwrap());
+                    {
+                        let mut v = events.lock().unwrap();
+                        assert_eq!(2,v.len());
+                        v.sort();
+                        assert_eq!("1_tenant_1_tenant_1",&v[0].data.message);
+                        assert_eq!("1_tenant_1_tenant_2",&v[1].data.message);
+                        assert_eq!("tenant1",&v[0].info.tenant);
+                        assert_eq!("tenant1",&v[1].info.tenant);
+                        assert_eq!("StringEvent",&v[0].info.code);
+                        assert_eq!("StringEvent",&v[1].info.code);
+                    }
+                    mgr.clean()?;
+                    mgr.close()?;
+                    Ok::<(),EventError>(())
+                };
+                executor::block_on(f)
             }
 
             #[test]
-            fn test_1_tenant_2_tenant()  -> Result<(),EventError>{
+            fn test_1_tenant_2_tenant()  -> EventResult<()>{
                 init_logger();
-                let mut mgr = $mgr?;
-                let events = Arc::new(Mutex::new(Vec::new()));
-                mgr.add_consumer("tenant1", StringAccumulateConsumer{accum:Arc::clone(&events)})?;
-                mgr.add_consumer("tenant1", StringAccumulateConsumer{accum:Arc::clone(&events)})?;
-                // depending on the underlying system, we cannot be sure messages from a previous tests are not going to be sent, so let's purge the old messages
-                thread::sleep(time::Duration::from_millis($wait*1000));
-                events.lock().unwrap().clear();
-                mgr.send("tenant1", StringEvent{message:"1_tenant_2_tenant_1".to_owned()})?;
-                mgr.send("tenant1", StringEvent{message:"1_tenant_2_tenant_2".to_owned()})?;
-                assert!(wait_for_condition($delay,|| events.lock().unwrap().len()==2),"events vector not filled: {:?}",events.lock().unwrap());
-                {
-                    let mut v = events.lock().unwrap();
-                    assert_eq!(2,v.len());
-                    v.sort();
-                    assert_eq!("1_tenant_2_tenant_1",&v[0].data.message);
-                    assert_eq!("1_tenant_2_tenant_2",&v[1].data.message);
-                    assert_eq!("tenant1",&v[0].info.tenant);
-                    assert_eq!("tenant1",&v[1].info.tenant);
-                    assert_eq!("StringEvent",&v[0].info.code);
-                    assert_eq!("StringEvent",&v[1].info.code);
-                    
-                }
-                mgr.clean()?;
-                mgr.close()?;
-                Ok(())
+                let f = async {
+                    let mut mgr = $mgr?;
+                    let events = Arc::new(Mutex::new(Vec::new()));
+                    mgr.add_consumer("tenant1", StringAccumulateConsumer{accum:Arc::clone(&events)})?;
+                    mgr.add_consumer("tenant1", StringAccumulateConsumer{accum:Arc::clone(&events)})?;
+                    // depending on the underlying system, we cannot be sure messages from a previous tests are not going to be sent, so let's purge the old messages
+                    thread::sleep(time::Duration::from_millis($wait*1000));
+                    events.lock().unwrap().clear();
+                    mgr.send("tenant1", StringEvent{message:"1_tenant_2_tenant_1".to_owned()}).await?;
+                    mgr.send("tenant1", StringEvent{message:"1_tenant_2_tenant_2".to_owned()}).await?;
+                    assert!(wait_for_condition($delay,|| events.lock().unwrap().len()==2),"events vector not filled: {:?}",events.lock().unwrap());
+                    {
+                        let mut v = events.lock().unwrap();
+                        assert_eq!(2,v.len());
+                        v.sort();
+                        assert_eq!("1_tenant_2_tenant_1",&v[0].data.message);
+                        assert_eq!("1_tenant_2_tenant_2",&v[1].data.message);
+                        assert_eq!("tenant1",&v[0].info.tenant);
+                        assert_eq!("tenant1",&v[1].info.tenant);
+                        assert_eq!("StringEvent",&v[0].info.code);
+                        assert_eq!("StringEvent",&v[1].info.code);
+                        
+                    }
+                    mgr.clean()?;
+                    mgr.close()?;
+                    Ok::<(),EventError>(())
+                };
+                executor::block_on(f)
             }
 
             #[test]
-            fn test_1_shared_1_shared()  -> Result<(),EventError>{
+            fn test_1_shared_1_shared()  -> EventResult<()>{
                 init_logger();
-                let mut mgr = $mgr?;
-                let events = Arc::new(Mutex::new(Vec::new()));
-                mgr.add_consumer("", StringAccumulateConsumer{accum:Arc::clone(&events)})?;
-                // depending on the underlying system, we cannot be sure messages from a previous tests are not going to be sent, so let's purge the old messages
-                thread::sleep(time::Duration::from_millis($wait*1000));
-                events.lock().unwrap().clear();
-                mgr.send("", StringEvent{message:"1_shared_1_shared_1".to_owned()})?;
-                mgr.send("", StringEvent{message:"1_shared_1_shared_2".to_owned()})?;
-                assert!(wait_for_condition($delay,|| events.lock().unwrap().len()==2),"events vector not filled: {:?}",events.lock().unwrap());
-                {
-                    let mut v = events.lock().unwrap();
-                    assert_eq!(2,v.len());
-                    v.sort();
-                    assert_eq!("1_shared_1_shared_1",&v[0].data.message);
-                    assert_eq!("1_shared_1_shared_2",&v[1].data.message);
-                    assert_eq!("",&v[0].info.tenant);
-                    assert_eq!("",&v[1].info.tenant);
-                    assert_eq!("StringEvent",&v[0].info.code);
-                    assert_eq!("StringEvent",&v[1].info.code);
-                    
-                }
-                mgr.clean()?;
-                mgr.close()?;
-                Ok(())
+                let f = async {
+                    let mut mgr = $mgr?;
+                    let events = Arc::new(Mutex::new(Vec::new()));
+                    mgr.add_consumer("", StringAccumulateConsumer{accum:Arc::clone(&events)})?;
+                    // depending on the underlying system, we cannot be sure messages from a previous tests are not going to be sent, so let's purge the old messages
+                    thread::sleep(time::Duration::from_millis($wait*1000));
+                    events.lock().unwrap().clear();
+                    mgr.send("", StringEvent{message:"1_shared_1_shared_1".to_owned()}).await?;
+                    mgr.send("", StringEvent{message:"1_shared_1_shared_2".to_owned()}).await?;
+                    assert!(wait_for_condition($delay,|| events.lock().unwrap().len()==2),"events vector not filled: {:?}",events.lock().unwrap());
+                    {
+                        let mut v = events.lock().unwrap();
+                        assert_eq!(2,v.len());
+                        v.sort();
+                        assert_eq!("1_shared_1_shared_1",&v[0].data.message);
+                        assert_eq!("1_shared_1_shared_2",&v[1].data.message);
+                        assert_eq!("",&v[0].info.tenant);
+                        assert_eq!("",&v[1].info.tenant);
+                        assert_eq!("StringEvent",&v[0].info.code);
+                        assert_eq!("StringEvent",&v[1].info.code);
+                        
+                    }
+                    mgr.clean()?;
+                    mgr.close()?;
+                    Ok::<(),EventError>(())
+                };
+                executor::block_on(f)
             }
 
             #[test]
-            fn test_2_tenant_1_shared()  -> Result<(),EventError>{
+            fn test_2_tenant_1_shared() -> EventResult<()>{
                 init_logger();
-                let mut mgr = $mgr?;
-                let events = Arc::new(Mutex::new(Vec::new()));
-                mgr.add_consumer("", StringAccumulateConsumer{accum:Arc::clone(&events)})?;
-                // depending on the underlying system, we cannot be sure messages from a previous tests are not going to be sent, so let's purge the old messages
-                thread::sleep(time::Duration::from_millis($wait*1000));
-                events.lock().unwrap().clear();
-                mgr.send("tenant1", StringEvent{message:"2_tenant_1_shared_1".to_owned()})?;
-                mgr.send("tenant2", StringEvent{message:"2_tenant_1_shared_2".to_owned()})?;
-                assert!(wait_for_condition($delay,|| events.lock().unwrap().len()==2),"events vector not filled: {:?}",events.lock().unwrap());
-                {
-                    let mut v = events.lock().unwrap();
-                    assert_eq!(2,v.len());
-                    v.sort();
-                    assert_eq!("2_tenant_1_shared_1",&v[0].data.message);
-                    assert_eq!("2_tenant_1_shared_2",&v[1].data.message);
-                    assert_eq!("tenant1",&v[0].info.tenant);
-                    assert_eq!("tenant2",&v[1].info.tenant);
-                    assert_eq!("StringEvent",&v[0].info.code);
-                    assert_eq!("StringEvent",&v[1].info.code);
-                    
-                }
-                mgr.clean()?;
-                mgr.close()?;
-                Ok(())
+                let f = async {
+                    let mut mgr = $mgr?;
+                    let events = Arc::new(Mutex::new(Vec::new()));
+                    mgr.add_consumer("", StringAccumulateConsumer{accum:Arc::clone(&events)})?;
+                    // depending on the underlying system, we cannot be sure messages from a previous tests are not going to be sent, so let's purge the old messages
+                    thread::sleep(time::Duration::from_millis($wait*1000));
+                    events.lock().unwrap().clear();
+                    mgr.send("tenant1", StringEvent{message:"2_tenant_1_shared_1".to_owned()}).await?;
+                    mgr.send("tenant2", StringEvent{message:"2_tenant_1_shared_2".to_owned()}).await?;
+                    assert!(wait_for_condition($delay,|| events.lock().unwrap().len()==2),"events vector not filled: {:?}",events.lock().unwrap());
+                    {
+                        let mut v = events.lock().unwrap();
+                        assert_eq!(2,v.len());
+                        v.sort();
+                        assert_eq!("2_tenant_1_shared_1",&v[0].data.message);
+                        assert_eq!("2_tenant_1_shared_2",&v[1].data.message);
+                        assert_eq!("tenant1",&v[0].info.tenant);
+                        assert_eq!("tenant2",&v[1].info.tenant);
+                        assert_eq!("StringEvent",&v[0].info.code);
+                        assert_eq!("StringEvent",&v[1].info.code);
+                        
+                    }
+                    mgr.clean()?;
+                    mgr.close()?;
+                    Ok::<(),EventError>(())
+                };
+                executor::block_on(f)
             }
 
 

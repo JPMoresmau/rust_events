@@ -6,10 +6,11 @@ use lapin::{
 
 use std::collections::{HashMap,HashSet};
 use serde::{Serialize,de::DeserializeOwned,de::Deserialize};
-use rust_events::{Consumer,ConsumerID,EventError,EventInfo,EventType,EventManager,GenericEvent};
+use rust_events::{Consumer,ConsumerID,EventError,EventInfo,EventType,EventManager,GenericEvent, EventResult};
 use std::time::SystemTime;
 use std::marker::PhantomData;
 use log::{info, trace, error};
+use async_trait::async_trait;
 
 /// EventManager structure for RabbitMQ
 pub struct RabbitMQEventManager {
@@ -63,23 +64,27 @@ impl Drop for RabbitMQEventManager {
 }
 
 /// Implementation of EventManager trait
+#[async_trait]
 impl EventManager for RabbitMQEventManager {
 
     /// Send an event to an Exchange called after the event code
-    fn send<T>(&mut self, tenant: &str,t: T) -> Result<(),EventError>
-        where T: EventType + Serialize{
+    async fn send<T>(&mut self, tenant: &str,t: T) -> EventResult<()>
+        where T: EventType + Serialize + Send {
         let code = T::code();
+        
         // topic exchange to route events properly
         self.exchange_declare(&code, ExchangeKind::Topic)?;
         let routing_key=format!("{}.{}",code,tenant);
-         let ge=GenericEvent{info:EventInfo{
+        let ge=GenericEvent{info:EventInfo{
             code: code.clone(),
             tenant: tenant.to_owned(),
             created: SystemTime::now(),
         },data:t};
-        ge.payload().and_then(|v| self.channel.basic_publish(&code,&routing_key, BasicPublishOptions::default(),v,BasicProperties::default())
-            .wait()
-            .map_err(|le| EventError::SendError(le.to_string())))
+        let v = ge.payload()?;
+        
+        self.channel.basic_publish(&code,&routing_key, BasicPublishOptions::default(),v,BasicProperties::default())
+            .await.map_err(|le| EventError::SendError(le.to_string()))
+        
     }
 
     /// Add a consumer by creating queues, exchanges and exchange binding

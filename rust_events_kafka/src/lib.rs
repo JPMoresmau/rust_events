@@ -8,14 +8,14 @@ use rdkafka::util::{Timeout};
 
 use std::collections::HashMap;
 use serde::{Serialize,de::DeserializeOwned,de::Deserialize};
-use rust_events::{Consumer,ConsumerID,EventError,EventInfo,EventType,EventManager,GenericEvent};
+use rust_events::{Consumer,ConsumerID,EventError,EventInfo,EventType,EventManager,GenericEvent, EventResult};
 use core::time::Duration;
 use std::time::SystemTime;
 use futures::executor::ThreadPool;
-use futures::executor;
 use futures::StreamExt;
 use std::sync::{Arc};
 use log::{info, trace, error};
+use async_trait::async_trait;
 
 /// Kafka struct
 pub struct KafkaEventManager {
@@ -69,10 +69,11 @@ impl KafkaEventManager {
 }
 
 /// Trait implementation
+#[async_trait]
 impl EventManager for KafkaEventManager {
-    /// Dend a message
-    fn send<T>(&mut self, tenant: &str,t: T) -> Result<(),EventError>
-        where T: EventType + Serialize{
+    /// Send a message
+    async fn send<T>(&mut self, tenant: &str,t: T) -> EventResult<()>
+        where T: EventType + Serialize + Send {
             let code = T::code();
             let ge=GenericEvent{info:EventInfo {
                 code: code.clone(),
@@ -84,9 +85,7 @@ impl EventManager for KafkaEventManager {
             let fr:FutureRecord<(),Vec<u8>> = FutureRecord::to(&code)
                 .payload(&payload)
                 .headers(OwnedHeaders::new().add("tenant",&ge.info.tenant));
-            let df = self.producer.send(fr, 0);
-            // send synchronously
-            executor::block_on(df).map_err(|_| EventError::SendError("Cancelled".to_owned()))
+            self.producer.send(fr, 0).await.map_err(|_| EventError::SendError("Cancelled".to_owned()))
                 .and_then(|r| r.map_err(|(ke,_)| EventError::SendError(ke.to_string())))
                 .map(|_| ())
            

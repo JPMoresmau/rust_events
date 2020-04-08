@@ -6,6 +6,8 @@ use rust_events_derive::*;
 use rust_events_rabbit::*;
 use serde::{Deserialize, Serialize};
 
+use futures::executor;
+
 #[derive(Debug, Default, Clone, Serialize, Deserialize, EventType)]
 struct MyEvent {
     message: String,
@@ -49,7 +51,7 @@ fn main() -> Result<(),EventError> {
             }
         },
         3 => {
-            mgr.send(get_tenant(&args[1]), MyEvent{message:args[2].clone()})?;
+            executor::block_on(mgr.send(get_tenant(&args[1]), MyEvent{message:args[2].clone()}))?;
         },
         _ => println!("Usage: (tenant or - for all) message?"),
     }

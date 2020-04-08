@@ -5,6 +5,7 @@
 
 use serde::{Deserialize, Serialize, de::DeserializeOwned};
 use std::time::SystemTime;
+use async_trait::async_trait;
 
 pub mod harness;
 
@@ -34,12 +35,16 @@ pub trait EventType {
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct ConsumerID(pub u64);
 
+/// Type alias for a Result that can return an EventError
+pub type EventResult<T> = Result<T,EventError>;
+
 /// The Event Manager is the main trait, offering functions to send and consume events
+#[async_trait]
 pub trait EventManager {
 
     /// Send an event optionally related to a tenant (use empty string for no tenant)
-    fn send<T>(&mut self, tenant: &str,t: T) -> Result<(),EventError>
-        where T: EventType + Serialize;
+    async fn send<T>(&mut self, tenant: &str,t: T) -> EventResult<()>
+        where T: EventType + Serialize + Send;
 
     /// Add a consumer to handle specific events, optionally for a specific tenant (use empty string for no tenant)
     fn add_consumer<T,C>(&mut self, tenant:&str, c: C)
