@@ -89,7 +89,7 @@ impl EventManager for RabbitMQEventManager {
 
     /// Add a consumer by creating queues, exchanges and exchange binding
     fn add_consumer<T,C>(&mut self, tenant:&str, c: C)
-    -> Result<ConsumerID,EventError>
+    -> EventResult<ConsumerID>
     where T: EventType + 'static + Sync + Send + DeserializeOwned,
         C: Consumer<T> + 'static + Clone + Sync + Send {
         let code = T::code();
@@ -141,10 +141,15 @@ impl EventManager for RabbitMQEventManager {
                 .wait()
                 .map_err(|le| EventError::SetupError(le.to_string()))?;
         }
+        // generate key
+        let mut id = ConsumerID(self.consumers.len() as u64);
+        while self.consumers.contains_key(&id){
+            id.0+=1;
+        }
         // register consumer
         let lc = self.channel.basic_consume(
             &group,
-            "",
+            &format!("consumer-{}",id.0),
             BasicConsumeOptions::default(),
             FieldTable::default(),
         )
@@ -152,19 +157,26 @@ impl EventManager for RabbitMQEventManager {
         .map_err(|le| EventError::SetupError(le.to_string()))?;
         // add the provided consumer as delegate
         lc.set_delegate(Box::new(Subscriber { channel: self.channel.clone(),consumer:c,event_type:PhantomData}));
-
-        // generate key
-        let mut id = ConsumerID(self.consumers.len() as u64);
-        while self.consumers.contains_key(&id){
-            id.0+=1;
-        }
+        
         self.consumers.insert(id.clone(), lc);
         Ok(id)
        
     }
 
+    /// Cancel consumer
+    fn remove_consumer(&mut self, cid: &ConsumerID) -> EventResult<()> {
+        if let None = self.consumers.remove(cid){
+            return Err(EventError::UnknownConsumerError(cid.clone()));
+        }
+
+        self.channel.basic_cancel(&format!("consumer-{}",cid.0),BasicCancelOptions::default())
+            .wait()
+            .map_err(|le| EventError::SetupError(le.to_string()))?;
+        Ok(())
+    }
+
     /// Close the connection and channel
-    fn close(&mut self) -> Result<(),EventError>{
+    fn close(&mut self) -> EventResult<()>{
         if self.opened {
             self.opened=false;
             info!("Closing RabbitMQEvent Manager");
@@ -179,7 +191,7 @@ impl EventManager for RabbitMQEventManager {
     }
 
     /// Remove all declared exchanges and queues
-    fn clean(&mut self) -> Result<(),EventError>{
+    fn clean(&mut self) -> EventResult<()>{
         self.queues.iter().try_for_each(|(group, _rk)|{
             self.channel.queue_delete(&group,QueueDeleteOptions::default()).wait().map(|_u| ()).map_err(|le| EventError::CleanError(le.to_string()))
         })?;

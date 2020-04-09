@@ -22,6 +22,7 @@ pub enum EventError {
     AckError(String),
     OtherError(String),
     CleanError(String),
+    UnknownConsumerError(ConsumerID),
     NoConsumeError,
 }
 
@@ -48,15 +49,18 @@ pub trait EventManager {
 
     /// Add a consumer to handle specific events, optionally for a specific tenant (use empty string for no tenant)
     fn add_consumer<T,C>(&mut self, tenant:&str, c: C)
-        -> Result<ConsumerID,EventError>
+        -> EventResult<ConsumerID>
         where T: EventType + 'static + Sync + Send + DeserializeOwned,
             C: Consumer<T> + 'static + Clone + Sync + Send;
 
+    /// Remove a conumer given its ID
+    fn remove_consumer(&mut self, cid: &ConsumerID) -> EventResult<()>;
+
     /// Close the manager and all the resources it holds
-    fn close(&mut self)-> Result<(),EventError>;
+    fn close(&mut self)-> EventResult<()>;
 
     /// Clean the underlying system, usually to ensure tests start from a clean slate
-    fn clean(&mut self)-> Result<(),EventError>;
+    fn clean(&mut self)-> EventResult<()>;
 }
 
 

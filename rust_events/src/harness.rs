@@ -41,7 +41,7 @@ macro_rules! event_tests {
                 let f = async {
                     let mut mgr = $mgr?;
                     let events = Arc::new(Mutex::new(Vec::new()));
-                    mgr.add_consumer("tenant1", StringAccumulateConsumer{accum:Arc::clone(&events)})?;
+                    let cid = mgr.add_consumer("tenant1", StringAccumulateConsumer{accum:Arc::clone(&events)})?;
                     // depending on the underlying system, we cannot be sure messages from a previous tests are not going to be sent, so let's purge the old messages
                     thread::sleep(time::Duration::from_millis($wait*1000));
                     events.lock().unwrap().clear();
@@ -58,7 +58,12 @@ macro_rules! event_tests {
                         assert_eq!("tenant1",&v[1].info.tenant);
                         assert_eq!("StringEvent",&v[0].info.code);
                         assert_eq!("StringEvent",&v[1].info.code);
+                        v.clear();
                     }
+                    mgr.remove_consumer(&cid)?;
+                    mgr.send("tenant1", StringEvent{message:"1_tenant_1_tenant_1_second".to_owned()}).await?;
+                    thread::sleep(time::Duration::from_millis($wait*1000));
+                    assert_eq!(0, events.lock().unwrap().len(), "events received after removing consumer");
                     mgr.clean()?;
                     mgr.close()?;
                     Ok::<(),EventError>(())

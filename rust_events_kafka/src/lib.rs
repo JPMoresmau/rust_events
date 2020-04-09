@@ -93,7 +93,7 @@ impl EventManager for KafkaEventManager {
 
     /// Add a consumer
     fn add_consumer<T,C>(&mut self, tenant:&str, c: C)
-    -> Result<ConsumerID,EventError>
+    -> EventResult<ConsumerID>
     where T: EventType + 'static + Sync + Send + DeserializeOwned,
         C: Consumer<T> + 'static + Clone + Sync + Send {
             let code = T::code();
@@ -140,8 +140,18 @@ impl EventManager for KafkaEventManager {
 
         }
 
+    /// Stop consumer
+    fn remove_consumer(&mut self, cid: &ConsumerID) -> EventResult<()> {
+        if let Some(c) = self.consumers.remove(cid) {
+            c.stop();
+        } else {
+            return Err(EventError::UnknownConsumerError(cid.clone()));
+        }
+        Ok(())
+    }
+
     /// Close producer and consumers
-    fn close(&mut self) -> Result<(),EventError>{
+    fn close(&mut self) -> EventResult<()> {
         if self.opened {
             self.opened=false;
             info!("Closing KafkaEventManager");
@@ -154,7 +164,7 @@ impl EventManager for KafkaEventManager {
     }
 
     /// NOOP for Kafka for now. Should we try to delete the topics we created?
-    fn clean(&mut self) -> Result<(),EventError>{
+    fn clean(&mut self) -> EventResult<()> {
         Ok(())
     }
 }
