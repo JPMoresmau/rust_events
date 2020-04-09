@@ -53,7 +53,7 @@ pub trait EventManager {
         T: EventType + 'static + Sync + Send + DeserializeOwned,
         C: Consumer<T> + 'static + Clone + Sync + Send;
 
-    /// Remove a conumer given its ID
+    /// Remove a consumer given its ID
     fn remove_consumer(&mut self, cid: &ConsumerID) -> EventResult<()>;
 
     /// Close the manager and all the resources it holds
