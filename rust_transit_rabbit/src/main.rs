@@ -1,8 +1,8 @@
 //! Example of RabbitMQ usage
 use lapin::ConnectionProperties;
-use rust_events::*;
-use rust_events_derive::*;
-use rust_events_rabbit::*;
+use rust_transit::*;
+use rust_transit_derive::*;
+use rust_transit_rabbit::*;
 use serde::{Deserialize, Serialize};
 use std::{env, thread, time};
 

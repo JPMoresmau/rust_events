@@ -3,9 +3,9 @@
 extern crate maplit;
 
 use futures::executor;
-use rust_events::*;
-use rust_events_derive::*;
-use rust_events_kafka::*;
+use rust_transit::*;
+use rust_transit_derive::*;
+use rust_transit_kafka::*;
 use serde::{Deserialize, Serialize};
 use std::{env, thread, time};
 

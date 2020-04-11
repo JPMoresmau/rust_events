@@ -11,7 +11,7 @@ use core::time::Duration;
 use futures::executor::ThreadPool;
 use futures::StreamExt;
 use log::{error, info, trace};
-use rust_events::{
+use rust_transit::{
     Consumer, ConsumerID, EventError, EventInfo, EventManager, EventResult, EventType, GenericEvent,
 };
 use serde::{de::Deserialize, de::DeserializeOwned, Serialize};

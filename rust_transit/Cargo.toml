@@ -1,0 +1,20 @@
+[package]
+name = "rust_transit"
+version = "0.1.0"
+authors = ["JP Moresmau <jp@moresmau.fr>"]
+edition = "2018"
+description = "A broker-agnostic asynchronous event library"
+homepage = "https://github.com/JPMoresmau/rust_events"
+keywords = ["message", "event", "asynchronous"]
+categories = ["asynchronous"]
+license = "MIT"
+repository = "https://github.com/JPMoresmau/rust_events"
+
+[dependencies]
+serde = {version= "1.0.105", features = ["derive"]}
+serde_json = "1.0.48"
+rust_transit_derive = { path = "../rust_transit_derive" }
+log = "0.4.8"
+env_logger = "0.7.1"
+async-trait = "0.1.30"
+futures = "0.3"

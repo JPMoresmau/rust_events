@@ -6,7 +6,7 @@
 
 use super::*;
 use log::error;
-use rust_events_derive::*;
+use rust_transit_derive::*;
 use serde::{Deserialize, Serialize};
 use std::sync::{Arc, Mutex};
 use std::{thread, time};
@@ -20,8 +20,8 @@ macro_rules! event_tests {
     ($mgr:expr, $delay:expr, $wait:expr) => {
         use futures::executor;
         use log::trace;
-        use rust_events::harness::*;
-        use rust_events::*;
+        use rust_transit::harness::*;
+        use rust_transit::*;
         use std::sync::{Arc, Mutex};
         use std::{thread, time};
 

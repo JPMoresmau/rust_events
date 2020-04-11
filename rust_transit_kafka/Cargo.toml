@@ -1,0 +1,23 @@
+[package]
+name = "rust_transit_kafka"
+version = "0.1.0"
+authors = ["JP Moresmau <jp@moresmau.fr>"]
+edition = "2018"
+description = "Kafka support for rust_transit"
+homepage = "https://github.com/JPMoresmau/rust_events"
+keywords = ["message", "event", "asynchronous"]
+categories = ["asynchronous"]
+license = "MIT"
+repository = "https://github.com/JPMoresmau/rust_events"
+
+[dependencies]
+rdkafka = { version = "0.23", features = ["cmake-build"] }
+rust_transit = { path = "../rust_transit" }
+rust_transit_derive = { path = "../rust_transit_derive" }
+serde = {version= "1.0.105", features = ["derive"]}
+serde_json = "1.0.48"
+futures = {version="0.3",features=["thread-pool"]}
+log = "0.4.8"
+env_logger = "0.7.1"
+maplit = "1.0.2"
+async-trait = "0.1.30"

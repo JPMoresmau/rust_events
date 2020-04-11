@@ -1,4 +1,4 @@
-//! # rust_events library
+//! # rust_transit library
 //!
 //! Abstract the underlying messaging technology under one generic interface
 //!
@@ -6,6 +6,7 @@
 use async_trait::async_trait;
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
 use std::time::SystemTime;
+use std::fmt;
 
 pub mod harness;
 
@@ -33,8 +34,14 @@ pub trait EventType {
 }
 
 /// A consumer ID to identify a consumer within a manager
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash, PartialOrd, Ord, Copy)]
 pub struct ConsumerID(pub u64);
+
+impl fmt::Display for ConsumerID {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "ConsumerID({})", self.0)
+    }
+}
 
 /// Type alias for a Result that can return an EventError
 pub type EventResult<T> = Result<T, EventError>;
@@ -85,6 +92,12 @@ pub struct EventInfo {
     pub tenant: String,
     /// Creation timestamp
     pub created: SystemTime,
+}
+
+impl fmt::Display for EventInfo {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "EventInfo(code={}, tenant={}, created={:?})", self.code, self.tenant, self.created)
+    }
 }
 
 /// Generic event holds the event info + specific event structure

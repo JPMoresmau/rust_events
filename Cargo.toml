@@ -1,2 +1,2 @@
 [workspace]
-members = ["rust_events_derive","rust_events","rust_events_rabbit","rust_events_kafka"]
+members = ["rust_transit_derive","rust_transit","rust_transit_rabbit","rust_transit_kafka"]

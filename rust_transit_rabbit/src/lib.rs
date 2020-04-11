@@ -9,7 +9,7 @@ use lapin::{
 
 use async_trait::async_trait;
 use log::{error, info, trace};
-use rust_events::{
+use rust_transit::{
     Consumer, ConsumerID, EventError, EventInfo, EventManager, EventResult, EventType, GenericEvent,
 };
 use serde::{de::Deserialize, de::DeserializeOwned, Serialize};

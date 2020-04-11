@@ -1,4 +1,4 @@
-//! # rust_events_derive
+//! # rust_transit_derive
 //! 
 //! Derive macros to easily define event types and consumer groups
 extern crate proc_macro;

@@ -1,5 +1,5 @@
-use rust_events::*;
-use rust_events::harness::*;
+use rust_transit::*;
+use rust_transit::harness::*;
 
 
 /// Test we can do a round trip via binary payload

@@ -1,0 +1,18 @@
+[package]
+name = "rust_transit_derive"
+version = "0.1.0"
+authors = ["JP Moresmau <jp@moresmau.fr>"]
+edition = "2018"
+description = "Derive macros for rust_transit"
+homepage = "https://github.com/JPMoresmau/rust_events"
+keywords = ["message", "event", "asynchronous"]
+categories = ["asynchronous"]
+license = "MIT"
+repository = "https://github.com/JPMoresmau/rust_events"
+
+[lib]
+proc-macro = true
+
+[dependencies]
+syn = "0.14.4"
+quote = "0.6.3"

@@ -941,20 +941,20 @@ dependencies = [
 ]
 
 [[package]]
-name = "rust_events"
+name = "rust_transit"
 version = "0.1.0"
 dependencies = [
  "async-trait",
  "env_logger",
  "futures",
  "log",
- "rust_events_derive",
+ "rust_transit_derive",
  "serde",
  "serde_json",
 ]
 
 [[package]]
-name = "rust_events_derive"
+name = "rust_transit_derive"
 version = "0.1.0"
 dependencies = [
  "quote 0.6.13",
@@ -962,7 +962,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "rust_events_kafka"
+name = "rust_transit_kafka"
 version = "0.1.0"
 dependencies = [
  "async-trait",
@@ -971,14 +971,14 @@ dependencies = [
  "log",
  "maplit",
  "rdkafka",
- "rust_events",
- "rust_events_derive",
+ "rust_transit",
+ "rust_transit_derive",
  "serde",
  "serde_json",
 ]
 
 [[package]]
-name = "rust_events_rabbit"
+name = "rust_transit_rabbit"
 version = "0.1.0"
 dependencies = [
  "async-trait",
@@ -986,8 +986,8 @@ dependencies = [
  "futures",
  "lapin",
  "log",
- "rust_events",
- "rust_events_derive",
+ "rust_transit",
+ "rust_transit_derive",
  "serde",
  "serde_json",
 ]
